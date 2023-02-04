@@ -221,3 +221,46 @@ spec:
           limits:
             memory: "2Gi"
             cpu: "2000m"
+# Conduktor
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conduktor-service
+spec:
+  selector:
+    app: conduktor
+  ports:
+  - protocol: TCP
+    port: 8081
+    targetPort: 8081
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conduktor
+spec:
+  selector:
+    matchLabels:
+      app: conduktor
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: conduktor
+    spec:
+      containers:
+      - name: conduktor
+        image: conduktor/conduktor-platform
+        ports:
+        - containerPort: 8081
+          name: "conduktor"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+---
