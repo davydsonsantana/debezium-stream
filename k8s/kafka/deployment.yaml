@@ -1,5 +1,3 @@
-
-
 # Kafka
 apiVersion: v1
 kind: Service
@@ -12,7 +10,7 @@ spec:
   - protocol: TCP
     port: 9092
     targetPort: 9092
-  type: ClusterIP
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -38,9 +36,9 @@ spec:
         - name: KAFKA_BROKER_ID
           value: "1"
         - name: KAFKA_ZOOKEEPER_CONNECT
-          value: "zookeper-service.default.svc.cluster.local:2181"
+          value: "zookeeper-statefulset-0.zookeeper-service:2181,zookeeper-statefulset-1.zookeeper-service:2181,zookeeper-statefulset-2.zookeeper-service:2181"
         - name: KAFKA_ADVERTISED_LISTENERS
-          value: "PLAINTEXT://kafka:9092"
+          value: "PLAINTEXT://kafka-service:9092"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
           value: "PLAINTEXT"
         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
@@ -100,45 +98,45 @@ spec:
             memory: "2Gi"
             cpu: "2000m"
 # Conduktor
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: conduktor-service
-spec:
-  selector:
-    app: conduktor
-  ports:
-  - protocol: TCP
-    port: 8081
-    targetPort: 8081
-  type: ClusterIP
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: conduktor
-spec:
-  selector:
-    matchLabels:
-      app: conduktor
-  replicas: 1
-  template:
-    metadata:
-      labels:
-        app: conduktor
-    spec:
-      containers:
-      - name: conduktor
-        image: conduktor/conduktor-platform
-        ports:
-        - containerPort: 8081
-          name: "conduktor"
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
-            memory: "2Gi"
-            cpu: "2000m"
----
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: conduktor-service
+# spec:
+#   selector:
+#     app: conduktor
+#   ports:
+#   - protocol: TCP
+#     port: 8081
+#     targetPort: 8081
+#   type: ClusterIP
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: conduktor
+# spec:
+#   selector:
+#     matchLabels:
+#       app: conduktor
+#   replicas: 1
+#   template:
+#     metadata:
+#       labels:
+#         app: conduktor
+#     spec:
+#       containers:
+#       - name: conduktor
+#         image: conduktor/conduktor-platform
+#         ports:
+#         - containerPort: 8081
+#           name: "conduktor"
+#         resources:
+#           requests:
+#             memory: "1Gi"
+#             cpu: "500m"
+#           limits:
+#             memory: "2Gi"
+#             cpu: "2000m"
+# ---

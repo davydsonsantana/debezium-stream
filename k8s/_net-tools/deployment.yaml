@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: net-tools
+spec:
+  selector:
+    matchLabels:
+      app: net-tools
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: net-tools
+    spec:
+      containers:
+      - name: net-tools
+        image: net-tools:latest
+        imagePullPolicy: Never
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
