@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sqlserver-origin-service
+spec:
+  selector:
+    app: sqlserver-origin
+  ports:
+  - protocol: TCP
+    port: 1433
+    targetPort: 1433
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sqlserver-origin
+spec:
+  selector:
+    matchLabels:
+      app: sqlserver-origin
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: sqlserver-origin
+    spec:
+      containers:
+      - name: sqlserver-origin
+        image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
+        ports:
+        - containerPort: 1433
+          name: "sql-server"
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: MSSQL_SA_PASSWORD
+          value: "Stone@2019!"
+        - name: MSSQL_PID
+          value: "Standard"
+        - name: MSSQL_AGENT_ENABLED
+          value: "True"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
