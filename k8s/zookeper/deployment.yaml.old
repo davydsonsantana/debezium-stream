@@ -1,0 +1,203 @@
+# net-tools for test
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: net-tools
+spec:
+  selector:
+    matchLabels:
+      app: net-tools
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: net-tools
+    spec:
+      containers:
+      - name: net-tools
+        image: net-tools:latest
+        imagePullPolicy: Never
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+# Zookeper
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zk-hs
+spec:
+  selector:
+    app: zk
+  clusterIP: None
+  ports:
+  - name: client
+    port: 2181
+  - name: server
+    port: 2888
+  - name: leader-election
+    port: 3888
+  - name: admin
+    port: 8080
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zk
+spec:
+  selector:
+    matchLabels:
+      app: zk
+  serviceName: zk-hs
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: OrderedReady
+  template:
+    metadata:
+      labels:
+        app: zk
+    spec:
+      containers:
+      - name: zookeeper
+        imagePullPolicy: IfNotPresent
+        image: zookeeper:3.6.4
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
+        - containerPort: 8080
+          name: admin
+        env:
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name: ZOO_ADMINSERVER_ENABLED
+          value: "true"
+        - name: ZOO_STANDALONE_ENABLED
+          value: "false"
+        - name: ZOO_MY_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ZOO_SERVERS
+          value: "server.1=zk-0.zk-hs:2888:3888;2181 server.2=zk-1.zk-hs:2888:3888;2181 server.3=zk-2.zk-hs:2888:3888;2181"
+        # readinessProbe:
+        #   exec:
+        #     command:
+        #     - sh
+        #     - -c
+        #     - ./bin/zkServer.sh status
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 10
+        #   timeoutSeconds: 1
+        #   successThreshold: 1
+        #   failureThreshold: 3
+        # livenessProbe:
+        #   exec:
+        #     command:
+        #     - sh
+        #     - -c
+        #     - ./bin/zkServer.sh status
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 10
+        #   timeoutSeconds: 1
+        #   successThreshold: 1
+        #   failureThreshold: 3
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/zookeeper
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+# # apiVersion: apps/v1
+# # kind: StatefulSet
+# # metadata:
+# #   name: zookeper
+# # spec:
+# #   selector:
+# #     matchLabels:
+# #       app: zookeper
+# #   replicas: 1
+# #   updateStrategy:
+# #     type: RollingUpdate
+# #   template:
+# #     metadata:
+# #       labels:
+# #         app: zookeper
+# #     spec:
+# #       containers:
+# #       - name: zookeper
+# #         image: zookeeper:3.8.0-temurin
+# #         ports:
+# #         - containerPort: 2181
+# #           name: "zookeper"
+# #         env:
+# #         - name: ZOOKEEPER_CLIENT_PORT
+# #           value: "2181"
+# #         - name: ZOOKEEPER_TICK_TIME
+# #           value: "2000"
+# #         readinessProbe:
+# #           tcpSocket:
+# #             port: 2181
+# #           # exec:
+# #           #   command:
+# #           #   - sh
+# #           #   - -c
+# #           #   - 'nc -zv 0.0.0.0 2181'
+# #           initialDelaySeconds: 10 #Default 0
+# #           periodSeconds: 2 #Default 10
+# #           timeoutSeconds: 2 #Default 1
+# #           successThreshold: 1 #Default 1
+# #           failureThreshold: 5 #Default 3
+# #         livenessProbe:
+# #           tcpSocket:
+# #             port: 2181
+# #           # exec:
+# #           #   command:
+# #           #   - sh
+# #           #   - -c
+# #           #   - 'nc -zv 0.0.0.0 2181'
+# #           initialDelaySeconds: 0 #Default 0
+# #           periodSeconds: 1 #Default 10
+# #           timeoutSeconds: 2 #Default 1
+# #           successThreshold: 1 #Default 1
+# #           failureThreshold: 5 #Default 3
+# #         volumeMounts:
+# #         - name: datadir
+# #           mountPath: /var/lib/zookeeper
+# #         resources:
+# #           requests:
+# #             memory: "2Gi"
+# #             cpu: "2000m"
+# #           limits:
+# #             memory: "3Gi"
+# #             cpu: "3000m"
+# #   volumeClaimTemplates:
+# #   - metadata:
+# #       name: datadir
+# #     spec:
+# #       accessModes: ["ReadWriteOnce"]
+# #       resources:
+# #         requests:
+# #           storage: 2Gi

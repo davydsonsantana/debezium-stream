@@ -1,0 +1,143 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+value: 1000000
+globalDefault: false
+description: "This priority class should be used for XYZ service pods only."
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-service
+  labels:
+    app: zookeeper
+spec:
+  ports:
+  - port: 2888
+    name: server
+  - port: 3888
+    name: leader-election
+  - port: 2181
+    name: client
+  clusterIP: None
+  selector:
+    app: zookeeper
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zookeeper-pdb
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zookeeper-statefulset
+  labels:
+    app: zookeeper
+spec:
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: zookeeper
+  serviceName: zookeeper-service
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+    spec:
+      # affinity:
+      #   # this causes K8s to only schedule only one Zookeeper pod per node              
+      #   podAntiAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #     - labelSelector:
+      #         matchExpressions:
+      #         - key: "app"
+      #           operator: In
+      #           values:
+      #           - zookeeper
+      #       topologyKey: "kubernetes.io/hostname"
+      # podAntiAffinity:
+      #   requiredDuringSchedulingIgnoredDuringExecution:
+      #   - labelSelector:
+      #       matchExpressions:
+      #       - key: "app"
+      #         operator: In
+      #         values:
+      #         - zookeeper
+      #     topologyKey: "kubernetes.io/hostname"
+      priorityClassName: high-priority
+      containers:
+      - name: zookeeper
+        image: zookeeper:3.6.4
+        env:
+        - name: ZK_REPLICAS
+          value: "3" # informs Zookeeper of the number of intended replicas
+        - name: ZK_TICK_TIME
+          value: "2000"
+        - name: ZOO_4LW_COMMANDS_WHITELIST
+          value: "mntr,conf,ruok"
+        - name: ZOO_STANDALONE_ENABLED
+          value: "false"
+        - name: ZOO_SERVERS # lists all of the Zookeeper servers that are part of this cluster          
+          value: server.1=zookeeper-statefulset-0.zookeeper-service:2888:3888;2181 server.2=zookeeper-statefulset-1.zookeeper-service:2888:3888;2181 server.3=zookeeper-statefulset-2.zookeeper-service:2888:3888;2181
+        - name: ZOO_CFG_EXTRA
+          value: "quorumListenOnAllIPs=true electionPortBindRetry=0" # quorumListenOnAllIPs allows ZK to listen on all IP addresses for leader election/follower, electionPortBindRetry disables the max retry count as other ZK instances are spinning up
+        ports:
+        - name: client
+          containerPort: 2181
+          protocol: TCP
+        - name: server
+          containerPort: 2888
+          protocol: TCP
+        - name: election
+          containerPort: 3888
+          protocol: TCP
+        volumeMounts:
+        - name: zookeeper-pv
+          mountPath: /data
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "OK=$(echo ruok | nc 127.0.0.1 2181); if [ \"$OK\" = \"imok\" ]; then\texit 0; else exit 1; fi;"
+          #   # runs a shell script to ping the running local Zookeeper instance, which responds with "imok" once the instance is ready
+          initialDelaySeconds: 20
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - "OK=$(echo ruok | nc 127.0.0.1 2181); if [ \"$OK\" = \"imok\" ]; then\texit 0; else exit 1; fi;"
+          #   # runs a shell script to ping the running local Zookeeper instance, which responds with "imok" once the instance is ready
+          initialDelaySeconds: 20
+          timeoutSeconds: 5
+      initContainers:
+      # each ZK instance requires an ID specification - since we can't set the ID using env variables, this init container sets the ID for each instance incrementally through a file on a volume mount
+      - name: zookeeper-id
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - echo $((${HOSTNAME##*-}+1)) > /data-new/myid
+        volumeMounts:
+        - name: zookeeper-pv
+          mountPath: /data-new
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-pv
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 2Gi
