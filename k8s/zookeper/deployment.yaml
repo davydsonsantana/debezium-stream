@@ -20,6 +20,8 @@ spec:
     name: leader-election
   - port: 2181
     name: client
+  - name: admin
+    port: 8080
   clusterIP: None
   selector:
     app: zookeeper
@@ -54,37 +56,19 @@ spec:
       labels:
         app: zookeeper
     spec:
-      # affinity:
-      #   # this causes K8s to only schedule only one Zookeeper pod per node              
-      #   podAntiAffinity:
-      #     requiredDuringSchedulingIgnoredDuringExecution:
-      #     - labelSelector:
-      #         matchExpressions:
-      #         - key: "app"
-      #           operator: In
-      #           values:
-      #           - zookeeper
-      #       topologyKey: "kubernetes.io/hostname"
-      # podAntiAffinity:
-      #   requiredDuringSchedulingIgnoredDuringExecution:
-      #   - labelSelector:
-      #       matchExpressions:
-      #       - key: "app"
-      #         operator: In
-      #         values:
-      #         - zookeeper
-      #     topologyKey: "kubernetes.io/hostname"
       priorityClassName: high-priority
       containers:
       - name: zookeeper
         image: zookeeper:3.6.4
         env:
+        - name: ZOO_ADMINSERVER_ENABLED
+          value: "true"
         - name: ZK_REPLICAS
           value: "3" # informs Zookeeper of the number of intended replicas
         - name: ZK_TICK_TIME
           value: "2000"
         - name: ZOO_4LW_COMMANDS_WHITELIST
-          value: "mntr,conf,ruok"
+          value: "*"
         - name: ZOO_STANDALONE_ENABLED
           value: "false"
         - name: ZOO_SERVERS # lists all of the Zookeeper servers that are part of this cluster          
@@ -101,6 +85,9 @@ spec:
         - name: election
           containerPort: 3888
           protocol: TCP
+        - containerPort: 8080
+          name: admin
+          protocol: TCP
         volumeMounts:
         - name: zookeeper-pv
           mountPath: /data
@@ -111,7 +98,7 @@ spec:
             - -c
             - "OK=$(echo ruok | nc 127.0.0.1 2181); if [ \"$OK\" = \"imok\" ]; then\texit 0; else exit 1; fi;"
           #   # runs a shell script to ping the running local Zookeeper instance, which responds with "imok" once the instance is ready
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           timeoutSeconds: 5
         readinessProbe:
           exec:
@@ -120,7 +107,7 @@ spec:
             - -c
             - "OK=$(echo ruok | nc 127.0.0.1 2181); if [ \"$OK\" = \"imok\" ]; then\texit 0; else exit 1; fi;"
           #   # runs a shell script to ping the running local Zookeeper instance, which responds with "imok" once the instance is ready
-          initialDelaySeconds: 20
+          initialDelaySeconds: 10
           timeoutSeconds: 5
       initContainers:
       # each ZK instance requires an ID specification - since we can't set the ID using env variables, this init container sets the ID for each instance incrementally through a file on a volume mount
